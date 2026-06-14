@@ -148,6 +148,10 @@ export interface GameState {
   storyScores: Record<string, number[]>
   isSettlement: boolean
   lastSettlement: SettlementResult | null
+  rumors: Rumor[]
+  officialInspection: OfficialInspection | null
+  branchUnlocks: BranchUnlock[]
+  lastRumorDay: number
 }
 
 export interface SettlementResult {
@@ -169,4 +173,64 @@ export interface SettlementResult {
 export interface CalcResult {
   value: number
   details: Record<string, number>
+}
+
+export type RumorTone = 'positive' | 'negative' | 'neutral'
+export type RumorCategory = 'story' | 'shop' | 'customer' | 'official'
+
+export interface Rumor {
+  id: string
+  content: string
+  tone: RumorTone
+  category: RumorCategory
+  intensity: number
+  sourceStoryId?: string
+  sourceBranchId?: string
+  createdAt: number
+  dayCreated: number
+  affectedTags?: string[]
+  customerTypeBoost?: CustomerType[]
+  customerTypeReduce?: CustomerType[]
+  heatModifier?: number
+  officialChance?: number
+}
+
+export interface RumorAction {
+  id: string
+  name: string
+  description: string
+  cost: number
+  costType: 'gold' | 'reputation'
+  effect: {
+    intensityChange?: number
+    toneChange?: RumorTone
+    addTags?: string[]
+    removeTags?: string[]
+  }
+}
+
+export interface TeaMasterOption {
+  id: string
+  name: string
+  description: string
+  cost: number
+  newContent: string
+  newTone: RumorTone
+  newCategory: RumorCategory
+}
+
+export interface OfficialInspection {
+  active: boolean
+  severity: number
+  reason: string
+  fine: number
+  reputationLoss: number
+}
+
+export interface BranchUnlock {
+  storyId: string
+  branchId: string
+  requiredRumorIntensity: number
+  requiredRumorCategory?: RumorCategory
+  unlocked: boolean
 }

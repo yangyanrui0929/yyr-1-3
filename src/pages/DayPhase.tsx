@@ -5,11 +5,13 @@ import TeaShop from '@/components/TeaShop'
 import SeatGrid from '@/components/SeatGrid'
 import Renovation from '@/components/Renovation'
 import Ledger from '@/components/Ledger'
+import RumorPanel from '@/components/RumorPanel'
+import OfficialInspection from '@/components/OfficialInspection'
 import { useGameStore } from '@/store/useGameStore'
 
 export default function DayPhase() {
   const navigate = useNavigate()
-  const { phase, switchToNight } = useGameStore()
+  const { phase, switchToNight, officialInspection } = useGameStore()
 
   const handleSwitch = () => {
     switchToNight()
@@ -46,7 +48,7 @@ export default function DayPhase() {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="space-y-6">
             <TeaShop />
             <Renovation />
@@ -55,8 +57,13 @@ export default function DayPhase() {
             <SeatGrid />
             <Ledger />
           </div>
+          <div className="space-y-6">
+            <RumorPanel />
+          </div>
         </div>
       </div>
+
+      {officialInspection && <OfficialInspection inspection={officialInspection} />}
     </div>
   )
 }

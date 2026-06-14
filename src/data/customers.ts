@@ -67,19 +67,50 @@ export function generateRandomCustomers(count: number): Customer[] {
   const result: Customer[] = []
   for (let i = 0; i < count; i++) {
     const tpl = CUSTOMER_TEMPLATES[Math.floor(Math.random() * CUSTOMER_TEMPLATES.length)]
-    result.push({
-      id: `c-${Date.now()}-${i}`,
-      type: tpl.type,
-      name: `${tpl.name}${['甲', '乙', '丙', '丁', '戊', '己'][i % 6]}`,
-      preferenceTags: [...tpl.preferenceTags],
-      generosity: tpl.generosity + Math.floor(Math.random() * 2) - 1,
-      patience: tpl.patience + Math.floor(Math.random() * 2) - 1,
-      wealth: tpl.baseWealth + Math.floor(Math.random() * tpl.baseWealth * 0.5),
-      socialInfluence: tpl.socialInfluence,
-      seatId: null,
-      satisfaction: 50,
-      emoji: tpl.emoji,
-    })
+    result.push(createCustomerFromTemplate(tpl, i))
   }
   return result
+}
+
+export function generateWeightedCustomers(
+  count: number,
+  weights: Record<string, number>
+): Customer[] {
+  const result: Customer[] = []
+  const weightedPool: CustomerTemplate[] = []
+
+  for (const tpl of CUSTOMER_TEMPLATES) {
+    const weight = weights[tpl.type] || 1
+    const adjustedWeight = Math.max(0.1, weight)
+    const numEntries = Math.round(adjustedWeight * 10)
+    for (let i = 0; i < numEntries; i++) {
+      weightedPool.push(tpl)
+    }
+  }
+
+  if (weightedPool.length === 0) {
+    return generateRandomCustomers(count)
+  }
+
+  for (let i = 0; i < count; i++) {
+    const tpl = weightedPool[Math.floor(Math.random() * weightedPool.length)]
+    result.push(createCustomerFromTemplate(tpl, i))
+  }
+  return result
+}
+
+function createCustomerFromTemplate(tpl: CustomerTemplate, index: number): Customer {
+  return {
+    id: `c-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 6)}`,
+    type: tpl.type,
+    name: `${tpl.name}${['甲', '乙', '丙', '丁', '戊', '己'][index % 6]}`,
+    preferenceTags: [...tpl.preferenceTags],
+    generosity: tpl.generosity + Math.floor(Math.random() * 2) - 1,
+    patience: tpl.patience + Math.floor(Math.random() * 2) - 1,
+    wealth: tpl.baseWealth + Math.floor(Math.random() * tpl.baseWealth * 0.5),
+    socialInfluence: tpl.socialInfluence,
+    seatId: null,
+    satisfaction: 50,
+    emoji: tpl.emoji,
+  }
 }

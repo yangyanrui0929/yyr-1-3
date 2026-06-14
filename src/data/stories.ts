@@ -1,4 +1,4 @@
-import type { Story } from '@/types'
+import type { Story, BranchUnlock, Rumor } from '@/types'
 
 export const STORIES: Story[] = [
   {
@@ -21,6 +21,13 @@ export const STORIES: Story[] = [
         content: '李云飞艺成下山，初入江湖便遇上了当年的仇人，一场恶战在所难免...',
         tags: ['武侠', '热血'],
         heatModifier: 10,
+      },
+      {
+        id: 's1-b3',
+        title: '第一章：意外奇遇',
+        content: '话说李云飞下山途中，意外救下一位神秘老者，老者赠他一本失传已久的武功秘籍...',
+        tags: ['武侠', '冒险', '神怪'],
+        heatModifier: 18,
       },
     ],
   },
@@ -45,6 +52,13 @@ export const STORIES: Story[] = [
         tags: ['爱情', '才子佳人'],
         heatModifier: 8,
       },
+      {
+        id: 's2-b3',
+        title: '第一折：化蝶双飞',
+        content: '谁说有情人终成眷属？杜丽娘竟因情而逝，书生悲痛欲绝，二人魂魄化蝶而去...',
+        tags: ['爱情', '神怪', '悲剧'],
+        heatModifier: 15,
+      },
     ],
   },
   {
@@ -67,6 +81,13 @@ export const STORIES: Story[] = [
         content: '董卓专权，满朝文武敢怒不敢言，曹操挺身而出，借七星宝刀欲行刺董卓...',
         tags: ['历史', '谋略'],
         heatModifier: 10,
+      },
+      {
+        id: 's3-b3',
+        title: '第一回：卧龙出山',
+        content: '话说刘备三顾茅庐，诸葛亮隆中对策，三分天下之计由此而定...',
+        tags: ['历史', '谋略', '传奇'],
+        heatModifier: 20,
       },
     ],
   },
@@ -91,6 +112,13 @@ export const STORIES: Story[] = [
         tags: ['神怪', '悬疑'],
         heatModifier: 9,
       },
+      {
+        id: 's4-b3',
+        title: '卷一：画皮惊魂',
+        content: '书生路遇一绝色女子，带回家中夜夜欢好，殊不知那女子竟是画皮恶鬼...',
+        tags: ['神怪', '悬疑', '恐怖'],
+        heatModifier: 16,
+      },
     ],
   },
   {
@@ -113,6 +141,13 @@ export const STORIES: Story[] = [
         content: '新任知府设宴，大小官员纷纷前来送礼，席间丑态百出...',
         tags: ['讽刺', '世情'],
         heatModifier: 7,
+      },
+      {
+        id: 's5-b3',
+        title: '第一回：钦差驾到',
+        content: '话说朝廷派下钦差大臣，一路暗访民情，大小官员闻风丧胆...',
+        tags: ['讽刺', '官场', '传奇'],
+        heatModifier: 14,
       },
     ],
   },
@@ -137,6 +172,87 @@ export const STORIES: Story[] = [
         tags: ['神怪', '热血'],
         heatModifier: 18,
       },
+      {
+        id: 's6-b3',
+        title: '第一回：真假猴王',
+        content: '话说有一六耳猕猴，化作孙悟空模样，真假难辨，闹得天地不宁...',
+        tags: ['神怪', '冒险', '悬疑'],
+        heatModifier: 22,
+      },
     ],
   },
 ]
+
+export const HIDDEN_BRANCH_UNLOCKS: BranchUnlock[] = [
+  {
+    storyId: 's1',
+    branchId: 's1-b3',
+    requiredRumorIntensity: 60,
+    requiredRumorCategory: 'story',
+    unlocked: false,
+  },
+  {
+    storyId: 's2',
+    branchId: 's2-b3',
+    requiredRumorIntensity: 50,
+    requiredRumorCategory: 'story',
+    unlocked: false,
+  },
+  {
+    storyId: 's3',
+    branchId: 's3-b3',
+    requiredRumorIntensity: 70,
+    requiredRumorCategory: 'story',
+    unlocked: false,
+  },
+  {
+    storyId: 's4',
+    branchId: 's4-b3',
+    requiredRumorIntensity: 55,
+    requiredRumorCategory: 'story',
+    unlocked: false,
+  },
+  {
+    storyId: 's5',
+    branchId: 's5-b3',
+    requiredRumorIntensity: 65,
+    requiredRumorCategory: 'story',
+    unlocked: false,
+  },
+  {
+    storyId: 's6',
+    branchId: 's6-b3',
+    requiredRumorIntensity: 80,
+    requiredRumorCategory: 'story',
+    unlocked: false,
+  },
+]
+
+export function getInitialBranchUnlocks(): BranchUnlock[] {
+  return HIDDEN_BRANCH_UNLOCKS.map((u) => ({ ...u }))
+}
+
+export function checkBranchUnlocks(
+  unlocks: BranchUnlock[],
+  rumors: Rumor[]
+): BranchUnlock[] {
+  const storyRumors = rumors.filter((r) => r.category === 'story')
+  const totalIntensity = storyRumors.reduce((sum, r) => sum + r.intensity, 0)
+
+  return unlocks.map((unlock) => {
+    if (unlock.unlocked) return unlock
+
+    let relevantIntensity = totalIntensity
+    if (unlock.requiredRumorCategory) {
+      relevantIntensity = rumors
+        .filter((r) => r.category === unlock.requiredRumorCategory)
+        .reduce((sum, r) => sum + r.intensity, 0)
+    }
+
+    if (relevantIntensity >= unlock.requiredRumorIntensity) {
+      return { ...unlock, unlocked: true }
+    }
+
+    return unlock
+  })
+}

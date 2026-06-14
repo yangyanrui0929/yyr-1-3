@@ -14,14 +14,25 @@ import type {
   StoryRecord,
   ReputationHistory,
   Renovation,
+  Rumor,
+  RumorAction,
+  TeaMasterOption,
+  OfficialInspection,
 } from '@/types'
-import { STORIES } from '@/data/stories'
+import { STORIES, getInitialBranchUnlocks, checkBranchUnlocks } from '@/data/stories'
 import { initSnacks } from '@/data/snacks'
 import { initSeats } from '@/data/seats'
 import { initRenovations, getUpgradeCost } from '@/data/renovations'
 import { INTERRUPTIONS } from '@/data/interruptions'
-import { generateRandomCustomers } from '@/data/customers'
+import { generateRandomCustomers, generateWeightedCustomers, CUSTOMER_TEMPLATES } from '@/data/customers'
 import { calcSettlement } from '@/utils/settlement'
+import {
+  generateRumorFromStory,
+  decayRumors,
+  getOfficialInspectionChance,
+  getRumorHeatModifier,
+  getCustomerTypeModifier,
+} from '@/data/rumors'
 
 const WEATHERS: Weather[] = ['晴', '晴', '晴', '云', '云', '雨', '雪']
 
@@ -67,6 +78,10 @@ const initialState: GameState = {
   storyScores: {},
   isSettlement: false,
   lastSettlement: null,
+  rumors: [],
+  officialInspection: null,
+  branchUnlocks: getInitialBranchUnlocks(),
+  lastRumorDay: 0,
 }
 
 interface GameActions {
@@ -82,6 +97,11 @@ interface GameActions {
   nextDay: () => void
   resetGame: () => void
   addLedgerRecord: (type: LedgerRecord['type'], category: string, amount: number, note: string) => void
+  addRumor: (rumor: Rumor) => void
+  amplifyRumor: (rumorId: string) => void
+  clarifyRumor: (rumorId: string) => void
+  useTeaMaster: (rumorId: string, option: TeaMasterOption) => void
+  resolveOfficialInspection: () => void
 }
 
 export const useGameStore = create<GameState & GameActions>()(
@@ -155,7 +175,24 @@ export const useGameStore = create<GameState & GameActions>()(
         if (state.reputation > 50) customerCount += 2
         if (state.reputation > 80) customerCount += 2
 
-        const customers = generateRandomCustomers(customerCount)
+        const positiveRumorIntensity = state.rumors
+          .filter((r) => r.tone === 'positive')
+          .reduce((sum, r) => sum + r.intensity, 0)
+        if (positiveRumorIntensity > 30) customerCount += 1
+        if (positiveRumorIntensity > 60) customerCount += 1
+
+        const negativeRumorIntensity = state.rumors
+          .filter((r) => r.tone === 'negative')
+          .reduce((sum, r) => sum + r.intensity, 0)
+        if (negativeRumorIntensity > 40) customerCount = Math.max(2, customerCount - 1)
+        if (negativeRumorIntensity > 70) customerCount = Math.max(2, customerCount - 1)
+
+        const typeWeights: Record<string, number> = {}
+        for (const tpl of CUSTOMER_TEMPLATES) {
+          typeWeights[tpl.type] = 1 + getCustomerTypeModifier(state.rumors, tpl.type)
+        }
+
+        const customers = generateWeightedCustomers(customerCount, typeWeights)
         const seats = [...state.seats].map((s) => ({ ...s, occupied: false }))
         const sortedSeats = [...seats].sort((a, b) => {
           const order: Record<Seat['tier'], number> = { 贵宾: 0, 雅座: 1, 普通: 2 }
@@ -168,7 +205,29 @@ export const useGameStore = create<GameState & GameActions>()(
           if (idx >= 0) seats[idx].occupied = true
         }
 
-        const availableStories = pickRandomStories(3)
+        const updatedUnlocks = checkBranchUnlocks(state.branchUnlocks, state.rumors)
+        const unlockedBranchIds = updatedUnlocks
+          .filter((u) => u.unlocked)
+          .map((u) => u.branchId)
+
+        const rawStories = pickRandomStories(3)
+        const availableStories = rawStories.map((story) => {
+          const visibleBranches = story.branches.filter((branch, index) => {
+            if (index < 2) return true
+            return unlockedBranchIds.includes(branch.id)
+          })
+          return {
+            ...story,
+            branches: visibleBranches,
+            heat: Math.min(
+              100,
+              Math.max(
+                0,
+                story.heat + getRumorHeatModifier(state.rumors, story.tags)
+              )
+            ),
+          }
+        })
 
         set({
           phase: 'night',
@@ -180,6 +239,7 @@ export const useGameStore = create<GameState & GameActions>()(
           storyProgress: 0,
           performanceActive: false,
           currentInterruption: null,
+          branchUnlocks: updatedUnlocks,
         })
       },
 
@@ -346,9 +406,45 @@ export const useGameStore = create<GameState & GameActions>()(
           get().addLedgerRecord('收入', '茶点售卖', result.snackRevenue, '消费茶点')
         if (result.badReviewPenalty > 0)
           get().addLedgerRecord('支出', '差评损失', result.badReviewPenalty, '客人不满索赔')
+
+        const rumorCount = Math.floor(Math.random() * 2) + 1
+        const allTags = [
+          ...state.currentStory.tags,
+          ...state.currentBranch.tags,
+        ]
+        for (let i = 0; i < rumorCount; i++) {
+          const rumor = generateRumorFromStory(
+            state.currentStory.id,
+            state.currentBranch.id,
+            allTags,
+            result.avgSatisfaction,
+            state.day
+          )
+          get().addRumor(rumor)
+        }
       },
 
       nextDay: () => {
+        const state = get()
+        const decayedRumors = decayRumors(state.rumors, 1)
+
+        let inspection: OfficialInspection | null = null
+        const inspectionChance = getOfficialInspectionChance(state.rumors)
+        if (Math.random() < inspectionChance) {
+          const negativeRumors = state.rumors.filter((r) => r.tone === 'negative')
+          const severity = Math.min(
+            100,
+            negativeRumors.reduce((sum, r) => sum + r.intensity, 0) / Math.max(1, negativeRumors.length)
+          )
+          inspection = {
+            active: true,
+            severity: Math.round(severity),
+            reason: '坊间传闻不利，官府上门巡查',
+            fine: Math.round(severity * 2),
+            reputationLoss: Math.round(severity * 0.3),
+          }
+        }
+
         set((s) => ({
           day: s.day + 1,
           phase: 'day',
@@ -362,6 +458,8 @@ export const useGameStore = create<GameState & GameActions>()(
           currentInterruption: null,
           isSettlement: false,
           seats: s.seats.map((seat) => ({ ...seat, occupied: false })),
+          rumors: decayedRumors,
+          officialInspection: inspection,
         }))
       },
 
@@ -385,6 +483,94 @@ export const useGameStore = create<GameState & GameActions>()(
           ],
         }))
       },
+
+      addRumor: (rumor) => {
+        set((s) => ({
+          rumors: [...s.rumors, rumor],
+          lastRumorDay: s.day,
+        }))
+      },
+
+      amplifyRumor: (rumorId) => {
+        const state = get()
+        const cost = 50
+        if (state.gold < cost) return
+
+        set((s) => ({
+          gold: s.gold - cost,
+          rumors: s.rumors.map((r) =>
+            r.id === rumorId
+              ? { ...r, intensity: Math.min(100, r.intensity + 15) }
+              : r
+          ),
+        }))
+        get().addLedgerRecord('支出', '传闻操作', cost, '故意放大传闻')
+      },
+
+      clarifyRumor: (rumorId) => {
+        const state = get()
+        const cost = 80
+        if (state.gold < cost) return
+
+        set((s) => ({
+          gold: s.gold - cost,
+          rumors: s.rumors.map((r) =>
+            r.id === rumorId
+              ? { ...r, intensity: Math.max(0, r.intensity - 20) }
+              : r
+          ).filter((r) => r.intensity > 0),
+        }))
+        get().addLedgerRecord('支出', '传闻操作', cost, '私下澄清传闻')
+      },
+
+      useTeaMaster: (rumorId, option) => {
+        const state = get()
+        if (state.gold < option.cost) return
+
+        set((s) => ({
+          gold: s.gold - option.cost,
+          rumors: s.rumors.map((r) =>
+            r.id === rumorId
+              ? {
+                  ...r,
+                  content: option.newContent,
+                  tone: option.newTone,
+                  category: option.newCategory,
+                  intensity: Math.max(5, r.intensity - 5),
+                }
+              : r
+          ),
+        }))
+        get().addLedgerRecord('支出', '茶博士改口', option.cost, option.name)
+      },
+
+      resolveOfficialInspection: () => {
+        const state = get()
+        if (!state.officialInspection) return
+
+        const inspection = state.officialInspection
+        const newGold = state.gold - inspection.fine
+        const newRep = Math.max(0, state.reputation - inspection.reputationLoss)
+
+        set((s) => ({
+          gold: newGold,
+          reputation: newRep,
+          officialInspection: null,
+          reputationHistory: [
+            ...s.reputationHistory,
+            {
+              day: s.day,
+              value: newRep,
+              delta: -inspection.reputationLoss,
+              reason: '官府巡查处罚',
+            },
+          ],
+        }))
+
+        if (inspection.fine > 0) {
+          get().addLedgerRecord('支出', '官府巡查', inspection.fine, inspection.reason)
+        }
+      },
     }),
     {
       name: 'teahouse-storyteller-save',
@@ -400,6 +586,10 @@ export const useGameStore = create<GameState & GameActions>()(
         reputationHistory: s.reputationHistory,
         lastStoryDay: s.lastStoryDay,
         storyScores: s.storyScores,
+        rumors: s.rumors,
+        officialInspection: s.officialInspection,
+        branchUnlocks: s.branchUnlocks,
+        lastRumorDay: s.lastRumorDay,
       }),
     }
   )
