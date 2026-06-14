@@ -537,6 +537,11 @@ export const useGameStore = create<GameState & GameActions>()(
                   tone: option.newTone,
                   category: option.newCategory,
                   intensity: Math.max(5, r.intensity - 5),
+                  affectedTags: option.newAffectedTags ?? [],
+                  customerTypeBoost: option.newCustomerTypeBoost ?? [],
+                  customerTypeReduce: option.newCustomerTypeReduce ?? [],
+                  heatModifier: option.newHeatModifier ?? 0,
+                  officialChance: option.newOfficialChance ?? 0,
                 }
               : r
           ),

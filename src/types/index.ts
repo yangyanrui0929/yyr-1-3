@@ -217,6 +217,11 @@ export interface TeaMasterOption {
   newContent: string
   newTone: RumorTone
   newCategory: RumorCategory
+  newAffectedTags?: string[]
+  newCustomerTypeBoost?: CustomerType[]
+  newCustomerTypeReduce?: CustomerType[]
+  newHeatModifier?: number
+  newOfficialChance?: number
 }
 
 export interface OfficialInspection {

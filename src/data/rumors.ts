@@ -135,6 +135,11 @@ export const TEA_MASTER_OPTIONS: TeaMasterOption[] = [
     newContent: '经茶博士证实，那茶楼的说书确实精彩绝伦，值得一听！',
     newTone: 'positive',
     newCategory: 'story',
+    newAffectedTags: ['武侠', '历史', '爱情', '神怪', '热血'],
+    newCustomerTypeBoost: ['书生', '商贾', '妇人', '江湖人', '平民'],
+    newCustomerTypeReduce: [],
+    newHeatModifier: 10,
+    newOfficialChance: 0,
   },
   {
     id: 'to-neutral',
@@ -144,6 +149,11 @@ export const TEA_MASTER_OPTIONS: TeaMasterOption[] = [
     newContent: '茶博士说了，不过是些坊间闲谈，当不得真的。',
     newTone: 'neutral',
     newCategory: 'shop',
+    newAffectedTags: [],
+    newCustomerTypeBoost: [],
+    newCustomerTypeReduce: [],
+    newHeatModifier: 0,
+    newOfficialChance: 0,
   },
   {
     id: 'to-other-story',
@@ -153,6 +163,11 @@ export const TEA_MASTER_OPTIONS: TeaMasterOption[] = [
     newContent: '茶博士透露，茶楼还有更精彩的故事没讲呢，大家不妨期待一下。',
     newTone: 'positive',
     newCategory: 'story',
+    newAffectedTags: ['冒险', '传奇', '励志'],
+    newCustomerTypeBoost: ['江湖人', '平民', '书生'],
+    newCustomerTypeReduce: [],
+    newHeatModifier: 8,
+    newOfficialChance: 0,
   },
 ]
 
@@ -210,14 +225,10 @@ export function getTotalRumorIntensity(rumors: Rumor[]): number {
 export function getRumorHeatModifier(rumors: Rumor[], storyTags: string[]): number {
   let modifier = 0
   for (const rumor of rumors) {
-    if (rumor.heatModifier) {
-      if (rumor.affectedTags && rumor.affectedTags.length > 0) {
-        const matchCount = rumor.affectedTags.filter((t) => storyTags.includes(t)).length
-        if (matchCount > 0) {
-          modifier += rumor.heatModifier * (matchCount / rumor.affectedTags.length)
-        }
-      } else {
-        modifier += rumor.heatModifier * 0.5
+    if (rumor.heatModifier && rumor.affectedTags && rumor.affectedTags.length > 0) {
+      const matchCount = rumor.affectedTags.filter((t) => storyTags.includes(t)).length
+      if (matchCount > 0) {
+        modifier += rumor.heatModifier * (matchCount / rumor.affectedTags.length) * (rumor.intensity / 50)
       }
     }
   }
@@ -230,21 +241,28 @@ export function getCustomerTypeModifier(
 ): number {
   let modifier = 0
   for (const rumor of rumors) {
+    const toneMultiplier = rumor.tone === 'positive' ? 1 : rumor.tone === 'negative' ? -0.5 : 0.3
     if (rumor.customerTypeBoost?.includes(customerType)) {
-      modifier += rumor.intensity * 0.02
+      modifier += rumor.intensity * 0.02 * toneMultiplier
     }
     if (rumor.customerTypeReduce?.includes(customerType)) {
-      modifier -= rumor.intensity * 0.02
+      modifier -= rumor.intensity * 0.025
     }
   }
   return modifier
 }
 
 export function getOfficialInspectionChance(rumors: Rumor[]): number {
-  let chance = 0.05
+  let chance = 0
+  const hasNegativeRumors = rumors.some((r) => r.tone === 'negative')
+  if (!hasNegativeRumors) return 0
   for (const rumor of rumors) {
-    if (rumor.officialChance && rumor.tone === 'negative') {
-      chance += rumor.officialChance * (rumor.intensity / 100)
+    if (rumor.tone === 'negative') {
+      if (rumor.officialChance) {
+        chance += rumor.officialChance * (rumor.intensity / 100)
+      } else {
+        chance += 0.03 * (rumor.intensity / 100)
+      }
     }
   }
   return Math.min(0.8, chance)

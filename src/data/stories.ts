@@ -236,7 +236,9 @@ export function checkBranchUnlocks(
   unlocks: BranchUnlock[],
   rumors: Rumor[]
 ): BranchUnlock[] {
-  const storyRumors = rumors.filter((r) => r.category === 'story')
+  const storyRumors = rumors.filter(
+    (r) => r.category === 'story' && r.tone !== 'negative'
+  )
   const totalIntensity = storyRumors.reduce((sum, r) => sum + r.intensity, 0)
 
   return unlocks.map((unlock) => {
@@ -245,7 +247,11 @@ export function checkBranchUnlocks(
     let relevantIntensity = totalIntensity
     if (unlock.requiredRumorCategory) {
       relevantIntensity = rumors
-        .filter((r) => r.category === unlock.requiredRumorCategory)
+        .filter(
+          (r) =>
+            r.category === unlock.requiredRumorCategory &&
+            r.tone !== 'negative'
+        )
         .reduce((sum, r) => sum + r.intensity, 0)
     }
 
